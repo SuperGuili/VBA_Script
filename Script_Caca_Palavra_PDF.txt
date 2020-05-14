@@ -1,0 +1,151 @@
+Public Sub saveAttachtoDisk(ByVal Item As Object)
+
+    'variaveis do anexo
+    Dim NewMail As Outlook.MailItem
+    Dim Atts As Attachments
+    Dim Att As Attachment
+
+    'variaveis do arquivo de LOG
+    Dim GravarLog As Boolean: GravarLog = True
+    Dim log As Object
+    Dim dateFormat As String
+    Dim fso As New Scripting.FileSystemObject
+    
+    'variaveis de leitura PDF, Palavras procuradas e caminho para salvar o pedido separado
+    Dim MEZZANI As String: MEZZANI = "MEZZANI": SalvaMezzani = "C:\pedidos\Mezzani\"
+    Dim TIROLEZ As String: TIROLEZ = "TIROLEZ": SalvaTirolez = "C:\pedidos\Tirolez\"
+
+    
+    
+    'Variavel do caminho para salvar o arquivo PDF temporário
+    Dim strPathPDF As String: strPathPDF = "C:\temp\"
+
+    'variaveis do objeto PDF
+    Dim appObj As Object, AVDocObj As Object
+    
+    'carrega o anexo
+    If Item.Class = olMail Then
+           Set NewMail = Item
+           dateFormat = Format(Item.ReceivedTime, "dd_mm_YY")
+    End If
+    
+    'carrega o pdf na variavel Atts
+    Set Atts = Item.Attachments
+
+    'Verifica se tem anexo no email
+    If Atts.Count > 0 Then
+
+        'Loop para varrer os anexos
+        For Each Att In Atts
+            If InStr(LCase(Att.filename), ".pdf") > 0 Then
+
+                'salva o arquivo temp caso seja PDF
+                If InStr(LCase(Att.filename), ".pdf") > 0 Then Att.SaveAsFile strPathPDF & Att.filename
+                    
+                    'Muda o caminho para o nome completo do arquivo
+                    strPathPDF = strPathPDF & Att.filename
+                    
+                    'Cria o objeto da aplicação Adobe
+                    Set appObj = CreateObject("AcroExch.App")
+                
+                    'Verifica erros
+                    If Err.Number <> 0 Then
+                        MsgBox "Erro ao criar o objeto do App Adobe..."
+                        Set appObj = Nothing
+                        Exit Sub
+                    End If
+                
+                    'Cria Objeto AVDoc
+                    Set AVDocObj = CreateObject("AcroExch.AVDoc")
+                
+                    'Verifica erros
+                    If Err.Number <> 0 Then
+                        MsgBox "Erro ao criar o objeto do AVDoc..."
+                        Set AVDocObj = Nothing
+                        Set appObj = Nothing
+                        Exit Sub
+                    End If
+                    
+                    'Abrir PDF
+                    If AVDocObj.Open(strPathPDF, "") = True Then
+                    
+                        'Trazer a janela do PDF para frente
+                        AVDocObj.BringToFront
+                        
+                        'Procura pela string e verifica se foi encontrada
+                        If AVDocObj.FindText(TIROLEZ, False, False, False) = True Then
+                          
+                            'Fechar o PDF
+                            AVDocObj.Close True
+
+                            'Mover o arquivo para a pasta separada
+                            Name strPathPDF As SalvaTirolez & TIROLEZ & " " & Att.filename
+                            
+                            'Verifica se quer gravar e grava no arquivo de LOG
+                            If GravarLog = True Then
+                                Set log = fso.OpenTextFile("C:\pedidos\logTXT.txt", ForAppending, TristateFalse)
+                                log.Write "TIROLEZ" & vbTab & dateFormat & vbTab & Att.filename & vbCrLf
+                                log.Close
+                            End If
+                                                   
+
+                            'Limpar Objetos PDF
+                            appObj.Exit
+                            Set AVDocObj = Nothing
+                            Set appObj = Nothing
+                        
+                        ElseIf AVDocObj.FindText(MEZZANI, False, False, False) = True Then
+                        
+                            'Fechar o PDF
+                            AVDocObj.Close True
+
+                            'Mover o arquivo para a pasta separada
+                            Name strPathPDF As SalvaMezzani & MEZZANI & " " & Att.filename
+                            
+                            'Verifica se quer gravar e grava no arquivo de LOG
+                            If GravarLog = True Then
+                                Set log = fso.OpenTextFile("C:\pedidos\logTXT.txt", ForAppending, TristateFalse)
+                                log.Write "MEZZANI" & vbTab & dateFormat & vbTab & Att.filename & vbCrLf
+                                log.Close
+                            End If
+                            
+                            'Limpar Objetos PDF
+                            appObj.Exit
+                            Set AVDocObj = Nothing
+                            Set appObj = Nothing
+                            
+
+                        Else
+                            AVDocObj.Close True
+                            
+                            'Verifica se quer gravar e grava no arquivo de LOG
+                            If GravarLog = True Then
+                                Set log = fso.OpenTextFile("C:\pedidos\logTXT.txt", ForAppending, TristateFalse)
+                                log.Write "NÃO ENCONTRADA" & vbTab & dateFormat & vbTab & Att.filename & vbCrLf
+                                log.Close
+                            End If
+                            
+                            appObj.Exit
+                            Set AVDocObj = Nothing
+                            Set appObj = Nothing
+                            Kill strPathPDF
+                    End If
+                    
+                Else
+                    'PDF file failed to open
+                    appObj.Exit
+
+                    'Release the objects.
+                    Set AVDocObj = Nothing
+                    Set appObj = Nothing
+                    
+                    MsgBox "Could not open the PDF file..."
+                    
+                End If
+            End If
+            strPathPDF = "C:\temp\"
+        Next
+    End If
+         
+End Sub
+
